@@ -1,0 +1,12 @@
+store
+logs
+log
+version-2
+*pid
+run
+persistent
+tmp
+workers
+data
+#tranquility
+certs*

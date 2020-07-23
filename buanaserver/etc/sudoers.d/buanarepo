@@ -1,0 +1,2 @@
+# User buanarepo privilege specification
+buanarepo    ALL=(ALL:ALL) NOPASSWD: /usr/bin/rsync,/bin/chown,/bin/rm,/usr/local/bin/pyconcrete-admin.py

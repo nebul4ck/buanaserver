@@ -1,0 +1,7 @@
+/var/log/buanaserver/buanaserver.log {
+        size 50M
+        missingok
+        rotate 2
+        compress
+        notifempty
+}

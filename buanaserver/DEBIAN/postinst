@@ -1,0 +1,140 @@
+#!/bin/bash
+
+BUANAREPO_USER="buanarepo"
+BUANAREPO_HOME="/home/$BUANAREPO_USER"
+BUANAREPO_DIR="/opt/buanaserver"
+BUANAREPO_LOG_DIR="/var/log/buanaserver"
+BUANAREPO_BUILD="/srv/buanarepo-build"
+BUANAREPO_REPO="/srv/buanarepo-repo"
+BUANAREPO_DEBS="/srv/buanarepo-debs"
+BUANAREPO_API_SITE="000-buanarepo-api.conf"
+BUANAREPO_HTTP_SITE="001-buanarepo-http.conf"
+BUANAREPO_HTTPS_SITE="002-buanarepo-https.conf"
+BUANAREPO_HTTPS_DEVELOP_SITES="003-buanarepo-https-develop.conf"
+BUANAREPO_HTTPS_MASTER_SITES="004-buanarepo-https-master.conf"
+PARTIAL_DIR="$BUANAREPO_DIR/rsync/partial"
+SUDOER_FILE="/etc/sudoers.d/buanarepo"
+
+echo "Setting Apache2 default conf..."
+mv -f /etc/apache2/buanarepo-apache2.conf /etc/apache2/apache2.conf && echo " ...OK"
+
+if ! grep -q $BUANAREPO_USER /etc/passwd
+then
+	echo "Creating buanarepo user..."
+	useradd -r $BUANAREPO_USER && echo " ...OK"
+else
+	echo "$BUANAREPO_USER user already exist. Nothing to do."
+fi
+
+if [ ! -d ${BUANAREPO_LOG_DIR} ];
+then
+	echo "Making ${BUANAREPO_LOG_DIR}..."
+	mkdir -p ${BUANAREPO_LOG_DIR} && echo " ...OK"
+	echo "Setting ${BUANAREPO_LOG_DIR} attributes...."
+	chown -R ${BUANAREPO_USER}:${BUANAREPO_USER} ${BUANAREPO_LOG_DIR} && echo " ...OK"
+fi	
+
+echo "Creating SSH PUBLIC KEY..."
+if [ ! -e "$BUANAREPO_HOME"/.ssh/id_rsa ]
+then
+	su -c "ssh-keygen -q -t rsa -f "$BUANAREPO_HOME"/.ssh/id_rsa -C '' -N ''" "$BUANAREPO_USER" && echo " ...OK"
+else
+	echo "SSH-PUB-KEY already exist."
+fi
+
+echo "Checking dirs..."
+
+echo " ${BUANAREPO_BUILD}"
+if [ ! -d ${BUANAREPO_BUILD} ];
+then
+	echo "  Making ${BUANAREPO_BUILD}..."
+	mkdir ${BUANAREPO_BUILD} && echo "   ...OK"
+	echo "  Setting ${BUANAREPO_BUILD} attributes..."
+	chown ${BUANAREPO_USER}:${BUANAREPO_USER} ${BUANAREPO_BUILD}
+	chmod -R 775 ${BUANAREPO_BUILD}
+	echo "   ...OK"
+else
+	echo "  Setting ${BUANAREPO_BUILD} attributes..."
+	chown ${BUANAREPO_USER}:${BUANAREPO_USER} ${BUANAREPO_BUILD}
+	#chown -R root:root "$BUANAREPO_BUILD"/*
+	chmod -R 775 ${BUANAREPO_BUILD}
+	echo "   ...OK"
+fi
+
+echo " ${BUANAREPO_DEBS}"
+if [ ! -d ${BUANAREPO_DEBS} ];
+then
+	echo "  Making ${BUANAREPO_DEBS}/{oldRelease,encrypt/oldRelease}..."
+	mkdir -p ${BUANAREPO_DEBS}/{oldRelease,encrypt/oldRelease} && echo "   ...OK"
+	echo "  User and group for $BUANAREPO_DEBS"
+	chown -R "$BUANAREPO_USER":"$BUANAREPO_USER" "$BUANAREPO_DEBS"
+	chmod -R 775 "$BUANAREPO_DEBS" && echo "   ...OK"
+else
+	echo "  User and group for $BUANAREPO_DEBS"
+	chown -R "$BUANAREPO_USER":"$BUANAREPO_USER" "$BUANAREPO_DEBS"
+	chmod -R 775 "$BUANAREPO_DEBS" && echo "   ...OK"
+fi
+
+echo " ${PARTIAL_DIR}"
+if [ ! -d ${PARTIAL_DIR} ];
+then
+	echo "  Making ${PARTIAL_DIR}..."
+	mkdir ${PARTIAL_DIR} && echo "   ...OK"
+else
+	echo "   ...OK"
+fi
+
+echo " ${BUANAREPO_REPO}"
+if [ ! -d ${BUANAREPO_REPO} ];
+then
+	echo " No repository dir found. Have you installed a debian repository?\n"
+else
+	echo " User and group for ${BUANAREPO_REPO}"
+	chown -R ${BUANAREPO_USER}:${BUANAREPO_USER} ${BUANAREPO_REPO}
+	chmod -R 775 ${BUANAREPO_REPO} && echo "  ...OK"
+fi
+
+if [ -f ${SUDOER_FILE} ]; then
+	chown root:root ${SUDOER_FILE}
+fi
+
+echo " ${BUANAREPO_DIR}"
+echo "  User and group for ${BUANAREPO_DIR}"
+chown -R ${BUANAREPO_USER}:${BUANAREPO_USER} ${BUANAREPO_DIR}
+chmod -R 775 ${BUANAREPO_DIR} && echo "   ...OK"
+
+### Enabling MODS
+echo "Enabling Apache mod_wsgi..."
+a2enmod wsgi && echo " ...OK"
+
+echo "Enabling Apache mod_rewrite..."
+a2enmod rewrite && echo " ...OK"
+
+### Enabling Sites
+echo "Enabling Buanarepo API site..."
+a2ensite $BUANAREPO_API_SITE && echo " ...OK"
+
+echo "Enabling Buanarepo HTTP site..."
+a2ensite $BUANAREPO_HTTP_SITE && echo " ...OK"
+
+echo "Enabling Buanarepo HTTPS site..."
+a2ensite $BUANAREPO_HTTPS_SITE && echo " ...OK"
+
+echo "Enabling Buanarepo HTTPS Master sites..."
+a2ensite $BUANAREPO_HTTPS_MASTER_SITES && echo " ...OK"
+
+echo "Enabling Buanarepo HTTPS Develop sites..."
+a2ensite $BUANAREPO_HTTPS_DEVELOP_SITES && echo " ...OK"
+
+### Remove pip use TO-DO
+echo "Install Paramiko..."
+pip install paramiko && echo " ...OK"
+
+echo "Install Flask-HTTPAuth"
+pip install Flask-HTTPAuth && echo " ...OK"
+
+### Reload Apache Config
+echo "Reloading Apache2..."
+systemctl reload apache2 && echo " ...OK"
+
+exit 0

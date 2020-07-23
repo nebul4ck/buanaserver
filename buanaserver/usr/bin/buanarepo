@@ -1,0 +1,349 @@
+#!/bin/bash
+
+# buanarepo: BUild ANd Add to REPO
+#
+# By default, buanarepo is installed into /usr/local/bin
+# (not absolute path is necessary)
+#
+# Buanarepo Script runs two actions:
+#   1)  Build package.deb
+#   2)  Add the package.deb to Saturn Suit Repo
+
+#   Module : Api/scripts | /usr/local/bin/buanarepo
+#   Platform : Unix/Linux
+#   Synopsis : Build package.deb and add it to repository
+#   Author : Alberto González <agonzalez@nebul4ck.es>
+#   Web : https://github.com/nebul4ck/buanaserver
+#
+
+# Global vars
+ARGS=7
+APPNAME="$1"
+APPSOURCE="$2"
+PKGNAME="$3"
+COMMAND="$4"
+APP_WITH_VERSION="$5"
+LANGUAGE="$6"
+BRANCH="$7"
+
+echo -e "\nPrint args: appname: $APPNAME, \
+appsource: $APPSOURCE, pkgname: $PKGNAME, \
+command: $COMMAND, app_with_version: $APP_WITH_VERSION, \
+language: $LANGUAGE, branch: $BRANCH\n\n"
+
+# Vars for build package
+
+BUANAREPO_BASE_BUILD="/srv/buanarepo-build"
+JENKINS_BASE_BUILD="/var/lib/jenkins/workspace"
+
+if [[ $COMMAND == 'git' || $COMMAND == 'backup' ]];then
+    BASE_BUILD="$BUANAREPO_BASE_BUILD"
+else
+    BASE_BUILD="$JENKINS_BASE_BUILD"
+fi
+
+echo "Global Vars:"
+BUILDER="$BASE_BUILD/$APPSOURCE"
+echo -e "\tbuilder: $BUILDER"
+BASE_DEB="/srv/buanarepo-debs"
+echo -e "\tbasedeb: $BASE_DEB"
+BASE_ENCRYPT="$BASE_DEB"/encrypt
+echo -e "\tbase_encrypt: $BASE_ENCRYPT"
+
+PYTHON_2_DIR="usr/lib/python2.7/dist-packages"
+PYTHON_3_DIR="usr/lib/python3.5/dist-packages"
+APPNAME_CONV=`echo $APPNAME | sed s/\-/\_/g`
+echo -e "\tappname_conv: $APPNAME_CONV"
+
+if [ "$LANGUAGE" = "python" ]; then
+    if [ -d ${BASE_BUILD}/${APPNAME}/${APPNAME}/${PYTHON_2_DIR}/${APPNAME_CONV} ];then
+        DIRECTORY_TO_ENCRYPT="$BASE_ENCRYPT"/"$APPNAME"/"$PYTHON_2_DIR"/"$APPNAME_CONV/"
+        echo -e "\tdirectory_to_encrypt: $DIRECTORY_TO_ENCRYPT"
+    elif [ -d ${BASE_BUILD}/${APPNAME}/${APPNAME}/${PYTHON_3_DIR}/${APPNAME_CONV} ];then
+        DIRECTORY_TO_ENCRYPT="$BASE_ENCRYPT"/"$APPNAME"/"$PYTHON_3_DIR"/"$APPNAME_CONV/"
+        echo -e "\tdirectory_to_encrypt: $DIRECTORY_TO_ENCRYPT"
+    fi
+fi
+
+APP_MAIN_DEB="$BASE_DEB"/"$APP_WITH_VERSION".deb
+echo -e "\tapp_main_deb: $APP_MAIN_DEB"
+APP_ENCRYPT_DEB="$BASE_ENCRYPT"/"$APP_WITH_VERSION".deb
+echo -e "\tapp_encrypt_deb: $APP_ENCRYPT_DEB"
+OLD_RELEASE="$BASE_DEB"/oldRelease
+echo -e "\told_release: $OLD_RELEASE"
+OLD_ENCRYPT_RELEASE="$BASE_ENCRYPT"/oldRelease
+echo -e "\told_encrypt_release: $OLD_ENCRYPT_RELEASE"
+MAX_PKG=3
+
+# Vars for add package to repository
+URL_REP="/srv/buanarepo-repo"
+URL_UBUNTU="$URL_REP/ubuntu/$BRANCH"
+echo -e "\turl_ubuntu: $URL_UBUNTU"
+COMPONENTS=("main" "restricted")
+ARCH="amd64"
+DIST="xenial"
+APP_WITH_VERSION="$APP_WITH_VERSION"
+echo -e "\tapp_with_version: $APP_WITH_VERSION"
+APP_MAIN_DEB="$APP_MAIN_DEB"
+echo -e "\tapp_main_deb: $APP_MAIN_DEB"
+#REM_UNREFERENCED="reprepro -Vb /srv/buanarepo-repo/ubuntu deleteunreferenced"
+
+# Functions
+helpUse(){
+    echo -e "\n Use:  # $0 <app_name> <app_source> <pkg_name> <command> <app_with_version> <language> <branch>"
+    echo -e " Examples:"
+    echo -e "\n\t# $0 assets-manager assets-manager/assets-manager assets-manager git assets-manager_0.1.4 python master\n"
+    exit 1
+}
+
+messages() {
+    case "$1" in
+        not_found)
+            echo -e "... Error: $2 directory not found."
+        ;;
+        encrypting)
+            echo -e "\nEncrypting $2 code..."
+        ;;
+        copying)
+            echo "Copying builder to $2...: $3 to $4"
+        ;;
+        attributes)
+            echo "Setting attributes $2 $3: $4/$5"
+        ;;
+        building)
+            echo "Building $2 into $3: $4/$5 into $6"
+        ;;
+        removing)
+            echo "Removing $2 temp directory $3: $4/$5"
+        ;;
+        uploading)
+            echo "Uploading package to reprepro: component ($2), arch ($3), dist ($4), app_deb ($5)"
+        ;;
+    esac
+}
+
+checkDirs(){
+    if test ! -d "$BUILDER"; then
+        echo -e " [Error]: $BUILDER directory not found. First,"
+        echo -e " You should created the builder directory"
+        exit 1
+    else
+        if test ! -d "$BASE_DEB"; then
+            messages not_found $BASE_DEB
+            exit 1
+        elif test ! -d "$BASE_ENCRYPT"; then
+            messages not_found $BASE_ENCRYPT
+            exit 1
+        else
+            if test ! -d "$OLD_RELEASE"; then
+            mkdir "$OLD_RELEASE"
+            fi
+        fi
+    fi
+}
+
+encryp_python_pkg(){
+
+    # TODO - SI EL CÓDIGO NO ES PYTHON NO HACE FALTA COPIAR LA CARPETA A BASE ENCRYPT NI CAMBIAR PERMISOS NI DPKG -B BASE_ENCRYPT
+    #SIMPLEMENTE QUE SE SUBA UN MAIN A MAIN Y OTRO MAIN A ENCRYPT. HACER UNA DISTINCIÓN CON # buanarepo git <packete> --python|node
+    messages encrypting python
+    cp -R "$BUILDER" "$BASE_ENCRYPT"
+    messages copying base_encrypt $BUILDER $BASE_ENCRYPT
+
+    sudo chown -R root:root "$BASE_ENCRYPT"/"$APPNAME"
+    messages attributes root:root base_encrypt/appname $BASE_ENCRYPT $APPNAME
+
+    # Here the ../python[2.7|3.6]/dist-packages/<package> directory will be encrypted
+    sudo pyconcrete-admin.py compile --source="$DIRECTORY_TO_ENCRYPT" --pye --remove-py --remove-pyc
+    echo "Encrypting directory_to_encrypt directory: $DIRECTORY_TO_ENCRYPT"
+
+    # Build Encrypt pkg
+    dpkg -b "$BASE_ENCRYPT"/"$APPNAME" "$APP_ENCRYPT_DEB"
+    messages building base_encrypt/appname app_encrypt_deb $BASE_ENCRYPT $APPNAME $APP_ENCRYPT_DEB
+
+    # Delete sources from debs directory
+    sudo rm -rf "$BASE_ENCRYPT"/"$APPNAME"
+    messages removing encrypted base_encrypt/appname $BASE_ENCRYPT $APPNAME
+}
+
+# WORKAROUND ONLY WELIGHT LEGACY
+encryp_django_pkg(){
+    messages encrypting Django
+    cp -R "$BUILDER" "$BASE_ENCRYPT"
+    messages copying base_encrypt $BUILDER $BASE_ENCRYPT
+    DJANGO_ENCRYPT_PATH="$BASE_ENCRYPT/$APPNAME/opt/"
+    echo "Setting django_encrypt_path: $DJANGO_ENCRYPT_PATH"
+
+    sudo pyconcrete-admin.py compile --source="$DJANGO_ENCRYPT_PATH" \
+    --pye --remove-py --remove-pyc -i wsgi.py manage.py setup.py local_settings.py
+    echo "Encrypting django_encrypt_path: $DJANGO_ENCRYPT_PATH:"
+
+    for i in $(find "$DJANGO_ENCRYPT_PATH" -iname "*.pye");
+    do
+        filename=$i; cp $i ${filename%.pye}.py
+    done
+
+    find "$DJANGO_ENCRYPT_PATH" -iname "requirements.txt" -exec sed -i '1i pyconcrete' {} \;
+    find "$DJANGO_ENCRYPT_PATH" -iname "manage.py" -exec sed -i '4i import pyconcrete' {} \;
+
+    sudo chown -R root:root "$BASE_ENCRYPT"/"$APPNAME"
+    messages attributes root:root base_encrypt/appname $BASE_ENCRYPT $APPNAME
+
+    # Build Encrypt pkg
+    dpkg -b "$BASE_ENCRYPT"/"$APPNAME" "$APP_ENCRYPT_DEB"
+    messages building base_encrypt/appname app_encrypt_deb $BASE_ENCRYPT $APPNAME $APP_ENCRYPT_DEB
+
+    # Delete sources from debs directory
+    sudo rm -rf "$BASE_ENCRYPT"/"$APPNAME"
+    messages removing encrypted base_encrypt/appname $BASE_ENCRYPT $APPNAME
+}
+
+buildPackage(){
+
+    if [[ "$COMMAND" == "git" || "$COMMAND" == "mpkg" ]]; then
+        echo "Building plain code. The command is $COMMAND"
+        cp -R "$BUILDER" "$BASE_DEB"
+        messages copying base_deb $BUILDER $BASE_DEB
+        sudo chown -R root:root "$BASE_DEB"/"$APPNAME"
+        messages attributes root:root base_deb/appname $BASE_DEB $APPNAME
+        # Build Main pkg
+        dpkg -b "$BASE_DEB"/"$APPNAME" "$APP_MAIN_DEB"
+        messages building base_deb/appname app_main_deb $BASE_DEB $APPNAME $APP_MAIN_DEB
+        sudo rm -rf "$BASE_DEB"/"$APPNAME"
+        messages removing plain base_deb/appname $BASE_DEB $APPNAME
+
+        if [ "$LANGUAGE" = "python" ]; then
+                encryp_python_pkg
+        elif [ "$LANGUAGE" = "django" ]; then
+            encryp_django_pkg
+        fi
+
+    else
+        echo "The command is $COMMAND"
+        messages building base_deb/appname app_main_deb $BASE_DEB $APPNAME $APP_MAIN_DEB
+        dpkg -b "$BUILDER" "$APP_MAIN_DEB"
+    fi
+}
+
+newName(){
+    APP_DEB="$1"
+    APP_WITH_VERSION="$2"
+    OLD_PACKAGE="$3"
+    CDATE=`ls -lc "$APP_DEB" |cut -d" " -f6,7,8|sed s/" "//g|sed s/":"//g`
+    mv "$APP_DEB" "$OLD_PACKAGE"/"$APP_WITH_VERSION"_"$CDATE".deb
+}
+
+#packageCount(){
+    # (TODO)
+    # Remove old packages. Only three versions by packages.
+
+#   P_COUNT=`find "$OLD_RELEASE" -name "$APPNAME"* |wc -l`
+#   if test "$P_COUNT" -ge "$MAX_PKG"; then
+#       P_LIST=`ls -t "$OLD_RELEASE" |grep "$APPNAME"*`
+#       for package in "${P_LIST[@]:$MAX_PKG}"; do
+#           echo -e "$package"; done
+#   fi
+#}
+
+addRepo(){
+
+    if [[ "$COMMAND" == "git" || "$COMMAND" == "mpkg" ]]; then
+        for COMPONENT in ${COMPONENTS[@]};
+        do
+            if [ "$COMPONENT" = 'restricted' ]; then
+                case $LANGUAGE in
+                    python|django)
+                        APP_DEB="$APP_ENCRYPT_DEB"
+                    ;;
+                    esac
+            else
+                APP_DEB="$APP_MAIN_DEB"
+            fi
+            
+            # TODO -> Mantener la antigua versión (REPREPRO NO LO SOPORTA)
+            STDOUT=`reprepro -Vb $URL_UBUNTU -S utils -C $COMPONENT -A $ARCH includedeb $DIST $APP_DEB 2>&1`
+
+            if echo "$STDOUT" | grep -q "Already existing" ||\
+            echo "$STDOUT" | grep -q "Skipping inclusion"; then
+                reprepro -Vb $URL_UBUNTU -C $COMPONENT remove $DIST $PKGNAME
+            fi
+            
+            # (TODO)
+            # If another package new version already exists in the repo
+            # this will isn't upload
+
+            # ADD NEW PKG
+            #IMPORTANTE: ES POSIBLE QUE NECESITE CREAR UNA LISTA CON LAS DOS INSERCIONES EN REPO (MAIN|RESTRICTED) PARA LUEG
+            #EN ACTIONS.PY EVALUAR SI ALGUNA DE LAS DOS INSERCIONES HA FALLADO
+            messages uploading $COMPONENT $ARCH $DIST $APP_DEB
+            reprepro -Vb $URL_UBUNTU -S utils -C $COMPONENT -A $ARCH includedeb $DIST $APP_DEB
+        done
+    else
+        # Upload the same package .deb to restricted and main branche. 
+        echo "The command is $COMMAND"
+        APP_DEB="$APP_MAIN_DEB"
+        echo "app_deb to load: $APP_DEB"
+
+        for COMPONENT in ${COMPONENTS[@]};
+        do
+            # TODO -> Mantener la antigua versión (REPREPRO NO LO SOPORTA)
+            STDOUT=`reprepro -Vb $URL_UBUNTU -S utils -C $COMPONENT -A $ARCH includedeb $DIST $APP_DEB 2>&1`
+
+            if echo "$STDOUT" | grep -q "Already existing"; then
+                reprepro -Vb $URL_UBUNTU -C $COMPONENT remove $DIST $PKGNAME
+            fi
+            
+            # (TODO)
+            # If another package new version already exists in the repo
+            # this will isn't upload
+            messages uploading $COMPONENT $ARCH $DIST $APP_DEB
+            reprepro -Vb $URL_UBUNTU -S utils -C $COMPONENT -A $ARCH includedeb $DIST $APP_DEB
+        done
+    fi
+}
+
+# Reprepro has a options that wait and retry count times while another instance of reprepro es currently using the database.
+#no_lockfile(){
+#   while [ -f "$URL_UBUNTU/db/lockfile" ]
+#   do
+#       sleep 1
+#   done
+#}
+
+# Check args
+if [[ $COMMAND == 'backup' ]]; then
+    ARGS=5
+elif [[ $COMMAND == 'git' || $COMMAND == 'mpkg' ]]; then
+    ARGS=7
+fi
+
+if test "$#" -ne "$ARGS"; then
+    helpUse
+fi
+
+# Check dirs
+checkDirs
+
+# Not overwrite old packages (buanarepo-debs/oldReleases)
+if test -f "$APP_MAIN_DEB"; then
+    newName "$APP_MAIN_DEB" "$APP_WITH_VERSION" "$OLD_RELEASE"
+fi
+
+# Not overwrite old packages (buanarepo-debs/encrypt/oldReleases)
+if test -f "$APP_ENCRYPT_DEB"; then
+    newName "$APP_ENCRYPT_DEB" "$APP_WITH_VERSION" "$OLD_ENCRYPT_RELEASE"
+fi
+
+# Check total packages (TODO)
+#packageCount
+
+# Build package
+# If ../db/lockfile exists, then waits to finish older task.
+# NEW! Now reprepro is using "--waitforlock count" option. It isn't necessary.
+#no_lockfile
+
+#buildPackage "$BUILDER" "$APP_MAIN_DEB" "$LANGUAGE" "$COMMAND"
+buildPackage
+
+# Add it to repository
+addRepo

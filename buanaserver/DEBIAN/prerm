@@ -1,0 +1,59 @@
+#!/bin/bash
+
+BUANAREPO_USER="buanarepo"
+BUANAREPO_API_SITE="000-buanarepo-api.conf"
+BUANAREPO_HTTP_SITE="001-buanarepo-http.conf"
+BUANAREPO_HTTPS_SITE="002-buanarepo-https.conf"
+BUANAREPO_HTTPS_DEVELOP_SITES="003-buanarepo-https-develop.conf"
+BUANAREPO_HTTPS_MASTER_SITES="004-buanarepo-https-master.conf"
+BUANAREPO_BASE="/opt/buanaserver"
+BUANAREPO_BUILD="/srv/buanarepo-build"
+BUANAREPO_DEBS="/srv/buanarepo-debs"
+BUANAREPO_LOG_DIR="/var/log/buanaserver"
+
+### Disabling Sites
+echo "Disabling Buanarepo API site..."
+a2dissite $BUANAREPO_API_SITE && echo " ...OK"
+
+echo "Disabling Buanarepo HTTP site..."
+a2dissite $BUANAREPO_HTTP_SITE && echo " ...OK"
+
+echo "Disabling Buanarepo HTTPS site..."
+a2dissite $BUANAREPO_HTTPS_SITE && echo " ...OK"
+
+echo "Disabling Buanarepo HTTPS Master sites..."
+a2dissite $BUANAREPO_HTTPS_MASTER_SITES && echo " ...OK"
+
+echo "Disabling Buanarepo HTTPS Develop sites..."
+a2dissite $BUANAREPO_HTTPS_DEVELOP_SITES && echo " ...OK"
+
+### Reload Apache2 Config
+echo -e "Reloading Apache2 config..."
+systemctl reload apache2.service && echo " ...OK"
+
+sleep 5
+
+### No uncomment or remove the next lines
+#echo -e "Removing $BUANAREPO_USER user..."
+#userdel -r "$BUANAREPO_USER"
+
+if [ -d ${BUANAREPO_LOG_DIR} ];then
+	echo -e "Removing ${BUANAREPO_LOG_DIR}..."
+	rm -rf ${BUANAREPO_LOG_DIR} && echo " ...OK"
+fi
+
+### Uninstall Pip packages. TO-DO no pip use
+echo "Uninstall Paramiko..."
+pip uninstall paramiko -y && echo " ...OK"
+
+echo "Uninstall Flask-HTTPAuth"
+pip uninstall Flask-HTTPAuth -y && echo " ...OK"
+
+### Remove extra install directories
+echo -e "Removing buanarepo-debs, buanarepo-build and buanarepo base directories..."
+echo -e "Directories $BUANAREPO_BASE" "$BUANAREPO_BUILD" "$BUANAREPO_DEBS won't be removed."
+### No uncomment or remove the next line
+#rm -rf "$BUANAREPO_BASE" "$BUANAREPO_BUILD" "$BUANAREPO_DEBS"
+rm -rf "$BUANAREPO_BASE"
+
+exit 0

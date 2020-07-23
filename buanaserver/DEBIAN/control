@@ -1,0 +1,12 @@
+Package: buanaserver
+Essential: no
+Priority: optional
+Section: main
+Maintainer: nebul4ck  <a.gonzalezmesas@gmail.com>
+Architecture: amd64
+Version: 1.4.7
+Depends: git, python2.7, libapache2-mod-wsgi, python-git, python-flask, pydeb
+#Recommends: git, python2.7, apache2, libapache2-mod-wsgi, python-pip, python-flask
+Homepage: https://github.com/nebul4ck/buanaserver
+Description: Buanarepo is a tools suite that synchronize and builds .deb packages (from local directories or git).
+  In addition, Buanarepo allows orchestrating hosts and servers.

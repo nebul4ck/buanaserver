@@ -1,0 +1,6 @@
+#!/bin/bash
+
+if [ -f /etc/apache2/apache2.conf ];then
+	echo -e "Rename apache2.conf file..."
+	mv -f /etc/apache2/apache2.conf /etc/apache2/apache2.conf.ori && echo " ...OK"
+fi

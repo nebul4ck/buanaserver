@@ -1,0 +1,14 @@
+# -*- coding: utf-8 -*-
+
+import logging
+from conf.settings import LOGFILE
+
+logFile = LOGFILE
+
+logging.basicConfig(level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(filename)s(%(lineno)d): %(message)4s',
+    datefmt='[%d/%m/%Y - %H:%M]',
+    filename='{log}'.format(log=logFile),
+    filemode='a')
+
+logger = logging
